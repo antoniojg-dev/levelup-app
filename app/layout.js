@@ -1,7 +1,9 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { XPProvider } from "@/contexts/XPContext";
+import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
+import FloatingActionButton from "@/components/FloatingActionButton";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -45,11 +47,13 @@ export default function RootLayout({ children }) {
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background`}
       >
         <XPProvider>
-          {/* Contenido principal con espacio para el bottom nav */}
-          <main className="max-w-lg mx-auto px-4 pt-6 pb-24 min-h-screen">
+          <AppHeader />
+          {/* Contenido principal: pt-14 por header fijo, pb-24 por bottom nav fijo */}
+          <main className="max-w-lg mx-auto px-4 pt-20 pb-28 min-h-screen">
             {children}
           </main>
           <BottomNav />
+          <FloatingActionButton />
         </XPProvider>
       </body>
     </html>
