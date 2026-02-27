@@ -4,11 +4,12 @@ import { useXP } from '@/contexts/XPContext';
 import { ICONOS_ACTIVIDAD, COLORES_ACTIVIDAD } from '@/lib/schedule';
 
 /**
- * Horario del día con checklist interactivo
- * Cada actividad se puede marcar como completada para ganar XP
+ * Horario del día con checklist interactivo.
+ * Al marcar/desmarcar una actividad se guarda en Supabase (daily_completions)
+ * a través de toggleActividad en XPContext.
  */
 export default function DailySchedule() {
-  const { horarioHoy, completadasHoy, toggleActividad } = useXP();
+  const { horarioHoy, completadasHoy, toggleActividad, errorSync } = useXP();
 
   if (horarioHoy.length === 0) {
     return (
@@ -28,6 +29,16 @@ export default function DailySchedule() {
       <h2 className="text-lg font-semibold text-foreground mb-3">
         Horario de hoy
       </h2>
+
+      {/* Banner de error de sincronización */}
+      {errorSync && (
+        <div className="mb-3 px-4 py-2 rounded-xl text-sm"
+          style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}
+        >
+          ⚠️ {errorSync} — los cambios están guardados localmente.
+        </div>
+      )}
+
       <div className="space-y-2">
         {horarioHoy.map((actividad) => {
           const completada = completadasHoy.includes(actividad.id);
@@ -37,7 +48,7 @@ export default function DailySchedule() {
           return (
             <button
               key={actividad.id}
-              onClick={() => toggleActividad(actividad.id, actividad.xp)}
+              onClick={() => toggleActividad(actividad.id, actividad.xp, actividad.nombre)}
               className="w-full text-left"
             >
               <div
