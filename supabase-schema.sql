@@ -118,3 +118,46 @@ ALTER TABLE calendar_events DISABLE ROW LEVEL SECURITY;
 -- Índice para consultas por fecha
 CREATE INDEX IF NOT EXISTS idx_calendar_events_date
   ON calendar_events (date);
+
+
+-- =========================================================
+-- MIGRACIÓN Fase 2 — Actualizar calendar_events
+-- Ejecutar si la tabla ya existe (ALTER TABLE es idempotente con IF NOT EXISTS)
+-- =========================================================
+
+-- Horario fijo (no se puede mover en el calendario drag&drop)
+ALTER TABLE calendar_events
+  ADD COLUMN IF NOT EXISTS fixed_schedule boolean NOT NULL DEFAULT false;
+
+-- Emoji del evento (ej: '🏃', '💻', '🥊')
+ALTER TABLE calendar_events
+  ADD COLUMN IF NOT EXISTS emoji text;
+
+-- Días de recurrencia como array de claves cortas en español
+-- Valores válidos: 'dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'
+-- Ejemplo: '{lun,mar,mie,jue,vie}'
+ALTER TABLE calendar_events
+  ADD COLUMN IF NOT EXISTS recurrence_days text[];
+
+-- XP que otorga completar este evento/actividad
+ALTER TABLE calendar_events
+  ADD COLUMN IF NOT EXISTS xp_reward integer NOT NULL DEFAULT 0;
+
+
+-- =========================================================
+-- 7. recurring_exceptions
+-- Excepciones de eventos recurrentes (ej: "este lunes no hay cardio")
+-- =========================================================
+CREATE TABLE IF NOT EXISTS recurring_exceptions (
+  id             bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  event_id       bigint      NOT NULL REFERENCES calendar_events (id) ON DELETE CASCADE,
+  exception_date date        NOT NULL,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (event_id, exception_date)  -- una excepción por evento por día
+);
+
+ALTER TABLE recurring_exceptions DISABLE ROW LEVEL SECURITY;
+
+-- Índice para consultas por event_id
+CREATE INDEX IF NOT EXISTS idx_recurring_exceptions_event_id
+  ON recurring_exceptions (event_id);

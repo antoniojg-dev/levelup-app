@@ -108,3 +108,14 @@ body {
 .progress-bar {
   transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Animación de sheets/modales desde abajo (estilo iOS) */
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.slide-up {
+  animation: slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}

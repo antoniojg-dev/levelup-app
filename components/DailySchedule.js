@@ -1,12 +1,11 @@
 'use client';
 
 import { useXP } from '@/contexts/XPContext';
-import { ICONOS_ACTIVIDAD, COLORES_ACTIVIDAD } from '@/lib/schedule';
 
 /**
  * Horario del día con checklist interactivo.
- * Al marcar/desmarcar una actividad se guarda en Supabase (daily_completions)
- * a través de toggleActividad en XPContext.
+ * Los eventos se cargan desde Supabase (calendar_events) a través de XPContext.
+ * Al marcar/desmarcar una actividad se guarda en Supabase (daily_completions).
  */
 export default function DailySchedule() {
   const { horarioHoy, completadasHoy, toggleActividad, errorSync } = useXP();
@@ -17,9 +16,9 @@ export default function DailySchedule() {
         className="bg-card rounded-2xl p-6 text-center"
         style={{ boxShadow: 'var(--shadow-card)' }}
       >
-        <p className="text-4xl mb-2">🎉</p>
-        <p className="text-foreground font-medium">Día libre</p>
-        <p className="text-sm text-muted mt-1">Disfruta tu descanso</p>
+        <p className="text-4xl mb-2">📋</p>
+        <p className="text-foreground font-medium">No hay actividades hoy</p>
+        <p className="text-sm text-muted mt-1">Agrega eventos desde el calendario</p>
       </div>
     );
   }
@@ -42,8 +41,9 @@ export default function DailySchedule() {
       <div className="space-y-2">
         {horarioHoy.map((actividad) => {
           const completada = completadasHoy.includes(actividad.id);
-          const icono = ICONOS_ACTIVIDAD[actividad.tipo];
-          const colores = COLORES_ACTIVIDAD[actividad.tipo];
+          // Color principal del evento (hex 6 dígitos), fondo con opacidad ~12%
+          const color = actividad.color || '#3B82F6';
+          const colorBg = color + '20';
 
           return (
             <button
@@ -59,7 +59,7 @@ export default function DailySchedule() {
                 `}
                 style={{
                   boxShadow: 'var(--shadow-card)',
-                  borderLeft: `4px solid ${colores.border}`,
+                  borderLeft: `4px solid ${color}`,
                 }}
               >
                 {/* Checkbox personalizado */}
@@ -69,8 +69,8 @@ export default function DailySchedule() {
                     flex-shrink-0 transition-all duration-200
                   `}
                   style={{
-                    borderColor: completada ? colores.text : colores.border,
-                    backgroundColor: completada ? colores.text : 'transparent',
+                    borderColor: completada ? color : color + '80',
+                    backgroundColor: completada ? color : 'transparent',
                   }}
                 >
                   {completada && (
@@ -90,12 +90,12 @@ export default function DailySchedule() {
                   )}
                 </div>
 
-                {/* Icono de actividad */}
+                {/* Emoji/icono del evento */}
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: colores.bg }}
+                  style={{ backgroundColor: colorBg }}
                 >
-                  <span className="text-lg">{icono}</span>
+                  <span className="text-lg">{actividad.emoji}</span>
                 </div>
 
                 {/* Info de la actividad */}
@@ -108,21 +108,25 @@ export default function DailySchedule() {
                   >
                     {actividad.nombre}
                   </p>
-                  <p className="text-xs text-muted-light">
-                    {actividad.hora}
-                  </p>
+                  {actividad.hora && (
+                    <p className="text-xs text-muted-light">
+                      {actividad.hora}
+                    </p>
+                  )}
                 </div>
 
                 {/* XP */}
-                <div
-                  className="text-xs font-semibold px-2 py-1 rounded-lg flex-shrink-0"
-                  style={{
-                    backgroundColor: completada ? colores.bg : 'var(--card-border)',
-                    color: completada ? colores.text : 'var(--muted)',
-                  }}
-                >
-                  +{actividad.xp} XP
-                </div>
+                {actividad.xp > 0 && (
+                  <div
+                    className="text-xs font-semibold px-2 py-1 rounded-lg flex-shrink-0"
+                    style={{
+                      backgroundColor: completada ? colorBg : 'var(--card-border)',
+                      color: completada ? color : 'var(--muted)',
+                    }}
+                  >
+                    +{actividad.xp} XP
+                  </div>
+                )}
               </div>
             </button>
           );

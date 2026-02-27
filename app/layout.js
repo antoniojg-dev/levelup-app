@@ -49,7 +49,10 @@ export default function RootLayout({ children }) {
         <XPProvider>
           <AppHeader />
           {/* Contenido principal: pt-14 por header fijo, pb-24 por bottom nav fijo */}
-          <main className="max-w-lg mx-auto px-4 pt-20 pb-28 min-h-screen">
+          <main
+            className="max-w-lg mx-auto px-4 pt-20 min-h-screen"
+            style={{ paddingBottom: 'calc(65px + env(safe-area-inset-bottom) + 16px)' }}
+          >
             {children}
           </main>
           <BottomNav />

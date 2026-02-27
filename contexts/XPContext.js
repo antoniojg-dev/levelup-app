@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { obtenerRango, obtenerSiguienteRango, calcularProgresoRango } from '@/lib/ranks';
 import { calcularXPGanado, BONIFICACIONES } from '@/lib/xp-config';
-import { obtenerHorarioHoy } from '@/lib/schedule';
+import { obtenerClaveRecurrencia } from '@/lib/schedule';
 import { supabase } from '@/lib/supabase';
 
 const XPContext = createContext(null);
@@ -47,17 +47,96 @@ function guardarDatosLocales(datos) {
   }
 }
 
+/**
+ * Mapear un evento de Supabase al formato interno de actividad
+ */
+function mapearEvento(ev) {
+  let hora = '';
+  if (ev.start_time && ev.end_time) {
+    hora = `${ev.start_time} - ${ev.end_time}`;
+  } else if (ev.start_time) {
+    hora = ev.start_time;
+  }
+
+  return {
+    id: String(ev.id),
+    nombre: ev.title,
+    hora,
+    emoji: ev.emoji || '📅',
+    color: ev.color || '#3B82F6',
+    xp: ev.xp_reward || 0,
+  };
+}
+
+/**
+ * Cargar el horario de hoy desde Supabase:
+ * - Eventos únicos con date = hoy
+ * - Eventos recurrentes cuyo recurrence_days contiene la clave de hoy
+ * - Excluir los que tienen una excepción para hoy
+ */
+async function cargarHorarioDesdeSupabase(hoy) {
+  const claveHoy = obtenerClaveRecurrencia();
+
+  // Eventos únicos de hoy
+  const { data: eventosUnicos } = await supabase
+    .from('calendar_events')
+    .select('*')
+    .eq('date', hoy)
+    .eq('recurring', false)
+    .order('start_time', { ascending: true });
+
+  // Eventos recurrentes para el día de hoy
+  const { data: eventosRecurrentes } = await supabase
+    .from('calendar_events')
+    .select('*')
+    .eq('recurring', true)
+    .filter('recurrence_days', 'cs', `{${claveHoy}}`)
+    .order('start_time', { ascending: true });
+
+  // Excepciones: eventos recurrentes cancelados específicamente para hoy
+  const { data: excepciones } = await supabase
+    .from('recurring_exceptions')
+    .select('event_id')
+    .eq('exception_date', hoy);
+
+  const idsExcepciones = new Set((excepciones || []).map(e => String(e.event_id)));
+
+  // Combinar, filtrar excepciones y ordenar por hora
+  const todos = [
+    ...(eventosUnicos || []),
+    ...(eventosRecurrentes || []).filter(ev => !idsExcepciones.has(String(ev.id))),
+  ].sort((a, b) => {
+    if (!a.start_time) return 1;
+    if (!b.start_time) return -1;
+    return a.start_time.localeCompare(b.start_time);
+  });
+
+  return todos.map(mapearEvento);
+}
+
 export function XPProvider({ children }) {
   const [xpTotal, setXPTotal] = useState(0);
   const [completadasHoy, setCompletadasHoy] = useState([]);
+  const [horarioHoy, setHorarioHoy] = useState([]);
   const [racha, setRacha] = useState(0);
+  // Versión del calendario — incrementar para forzar recarga en CalendarioPage
+  const [calendarVersion, setCalendarVersion] = useState(0);
+  const invalidarCalendario = useCallback(() => setCalendarVersion(v => v + 1), []);
   const [fechaActual, setFechaActual] = useState('');
   const [xpGanadoAnimacion, setXPGanadoAnimacion] = useState(null);
   const [cargado, setCargado] = useState(false);
   const [errorSync, setErrorSync] = useState(null);
 
+  // Ref para acceder al horario actual dentro de callbacks sin stale closure
+  const horarioHoyRef = useRef([]);
+
   // Ref para el timer de debounce del sync a Supabase
   const syncTimerRef = useRef(null);
+
+  // Mantener ref sincronizada con el estado
+  useEffect(() => {
+    horarioHoyRef.current = horarioHoy;
+  }, [horarioHoy]);
 
   // ─── Inicialización: cargar desde Supabase con fallback a localStorage ──────
   useEffect(() => {
@@ -82,6 +161,9 @@ export function XPProvider({ children }) {
 
         if (errorCompletaciones) throw errorCompletaciones;
 
+        // Cargar horario de hoy desde Supabase
+        const horario = await cargarHorarioDesdeSupabase(hoy);
+
         if (progreso) {
           setXPTotal(progreso.xp ?? 0);
           setRacha(progreso.streak ?? 0);
@@ -104,6 +186,8 @@ export function XPProvider({ children }) {
           }
         }
 
+        setHorarioHoy(horario);
+        horarioHoyRef.current = horario;
         setErrorSync(null);
       } catch (error) {
         console.error('Error cargando desde Supabase, usando localStorage:', {
@@ -123,6 +207,7 @@ export function XPProvider({ children }) {
             setCompletadasHoy(local.completadasHoy ?? []);
           }
         }
+        // Sin horario disponible en fallback local → queda vacío
       } finally {
         setFechaActual(hoy);
         setCargado(true);
@@ -213,12 +298,14 @@ export function XPProvider({ children }) {
         setXPGanadoAnimacion({ xp: xpActividad, key: Date.now() });
 
         const nuevasCompletadas = [...prev, actividadId];
-        const horarioHoy = obtenerHorarioHoy();
-        const todasCompletadas = horarioHoy.every(act =>
+
+        // Usar ref para acceder al horario actual sin stale closure
+        const horarioActual = horarioHoyRef.current;
+        const todasCompletadas = horarioActual.every(act =>
           nuevasCompletadas.includes(act.id)
         );
 
-        if (todasCompletadas && horarioHoy.length > 0) {
+        if (todasCompletadas && horarioActual.length > 0) {
           // Bonus por día completo
           setXPTotal(xp => xp + BONIFICACIONES.dia_completo);
           setXPGanadoAnimacion({
@@ -261,7 +348,6 @@ export function XPProvider({ children }) {
   }, []);
 
   // ─── Datos derivados ────────────────────────────────────────────────────────
-  const horarioHoy = typeof window !== 'undefined' ? obtenerHorarioHoy() : [];
   const rangoActual = obtenerRango(xpTotal);
   const siguienteRango = obtenerSiguienteRango(xpTotal);
   const progresoRango = calcularProgresoRango(xpTotal);
@@ -276,6 +362,7 @@ export function XPProvider({ children }) {
     // Estado
     xpTotal,
     completadasHoy,
+    horarioHoy,
     racha,
     cargado,
     xpGanadoAnimacion,
@@ -289,10 +376,13 @@ export function XPProvider({ children }) {
     progresoDia,
     totalActividadesHoy,
     actividadesCompletadasHoy,
-    horarioHoy,
 
     // Acciones
     toggleActividad,
+    invalidarCalendario,
+
+    // Versión del calendario (para forzar recarga desde otros componentes)
+    calendarVersion,
   };
 
   return (
