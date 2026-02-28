@@ -3,6 +3,7 @@
 import DashboardHeader from '@/components/DashboardHeader';
 import XPBar from '@/components/XPBar';
 import DailyProgress from '@/components/DailyProgress';
+import FraseMotivacional from '@/components/FraseMotivacional';
 import DailySchedule from '@/components/DailySchedule';
 import { useXP } from '@/contexts/XPContext';
 
@@ -38,6 +39,7 @@ export default function Home() {
       <DashboardHeader />
       <XPBar />
       <DailyProgress />
+      <FraseMotivacional />
       <DailySchedule />
     </>
   );

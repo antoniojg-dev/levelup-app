@@ -55,11 +55,10 @@ export default function DailyProgress() {
           </span>
           <span className="text-sm text-muted mb-1">XP</span>
         </div>
-        <div className="flex items-center gap-1 mt-1">
-          <span className="text-xs">🔥</span>
-          <span className="text-xs text-muted-light">
-            Racha: {racha} {racha === 1 ? 'día' : 'días'}
-          </span>
+        <div className="flex items-center gap-1.5 mt-1">
+          <span className="text-base leading-none">🔥</span>
+          <span className="text-sm font-bold text-foreground">{racha}</span>
+          <span className="text-xs text-muted-light">{racha === 1 ? 'día' : 'días'}</span>
         </div>
       </div>
     </div>

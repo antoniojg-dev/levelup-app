@@ -32,10 +32,11 @@ export default function XPBar() {
             {rangoActual.descripcion}
           </span>
         </div>
-        <div className="flex items-center gap-1 relative">
-          <span className="text-sm font-semibold text-foreground">
-            {xpTotal.toLocaleString()} XP
+        <div className="flex items-baseline gap-1 relative">
+          <span className="text-3xl font-bold text-foreground">
+            {xpTotal.toLocaleString()}
           </span>
+          <span className="text-xs text-muted">XP</span>
           {/* Animación de XP ganado */}
           {xpGanadoAnimacion && (
             <span

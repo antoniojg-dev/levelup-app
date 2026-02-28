@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useXP } from '@/contexts/XPContext';
 
 /**
@@ -9,6 +10,26 @@ import { useXP } from '@/contexts/XPContext';
  */
 export default function DailySchedule() {
   const { horarioHoy, completadasHoy, toggleActividad, errorSync } = useXP();
+  // IDs de actividades con micro-animación activa al completar
+  const [animando, setAnimando] = useState(new Set());
+
+  /** Dispara animación solo al marcar (no al desmarcar) */
+  const handleToggle = (id, xp, nombre) => {
+    if (!completadasHoy.includes(id)) {
+      setAnimando(prev => new Set([...prev, id]));
+      setTimeout(() => {
+        setAnimando(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }, 400);
+    }
+    toggleActividad(id, xp, nombre);
+  };
+
+  /** Quita los segundos de una hora en formato HH:MM:SS → HH:MM */
+  const formatearHora = (hora) => hora?.slice(0, 5) ?? '';
 
   if (horarioHoy.length === 0) {
     return (
@@ -48,7 +69,7 @@ export default function DailySchedule() {
           return (
             <button
               key={actividad.id}
-              onClick={() => toggleActividad(actividad.id, actividad.xp, actividad.nombre)}
+              onClick={() => handleToggle(actividad.id, actividad.xp, actividad.nombre)}
               className="w-full text-left"
             >
               <div
@@ -56,6 +77,7 @@ export default function DailySchedule() {
                   bg-card rounded-2xl p-4 flex items-center gap-3
                   transition-all duration-200 active:scale-[0.98]
                   ${completada ? 'opacity-70' : ''}
+                  ${animando.has(actividad.id) ? 'animate-complete-scale' : ''}
                 `}
                 style={{
                   boxShadow: 'var(--shadow-card)',
@@ -90,13 +112,8 @@ export default function DailySchedule() {
                   )}
                 </div>
 
-                {/* Emoji/icono del evento */}
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: colorBg }}
-                >
-                  <span className="text-lg">{actividad.emoji}</span>
-                </div>
+                {/* Emoji del evento — flotante sin fondo */}
+                <span className="text-2xl flex-shrink-0">{actividad.emoji}</span>
 
                 {/* Info de la actividad */}
                 <div className="flex-1 min-w-0">
@@ -110,7 +127,7 @@ export default function DailySchedule() {
                   </p>
                   {actividad.hora && (
                     <p className="text-xs text-muted-light">
-                      {actividad.hora}
+                      {formatearHora(actividad.hora)}
                     </p>
                   )}
                 </div>

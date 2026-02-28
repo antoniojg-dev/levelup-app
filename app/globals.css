@@ -119,3 +119,14 @@ body {
   animation: slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1);
   will-change: transform;
 }
+
+/* Micro-animación al completar una actividad */
+@keyframes completarActividad {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+
+.animate-complete-scale {
+  animation: completarActividad 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
