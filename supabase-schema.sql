@@ -161,3 +161,24 @@ ALTER TABLE recurring_exceptions DISABLE ROW LEVEL SECURITY;
 -- Índice para consultas por event_id
 CREATE INDEX IF NOT EXISTS idx_recurring_exceptions_event_id
   ON recurring_exceptions (event_id);
+
+
+-- =========================================================
+-- MIGRACIÓN Fase 3 — Sistema de Hábitos
+-- Ejecutar en Supabase Dashboard > SQL Editor
+-- =========================================================
+
+-- Columna para controlar que la racha suba solo una vez por día
+-- Guarda la última fecha en que se incrementó la racha
+ALTER TABLE user_progress
+  ADD COLUMN IF NOT EXISTS last_streak_date date;
+
+-- Emoji del hábito (la columna "icon" ya existe, esta es la nueva)
+ALTER TABLE habits
+  ADD COLUMN IF NOT EXISTS emoji text DEFAULT '💪';
+
+-- IDs de eventos del calendario vinculados al hábito.
+-- Al completar cualquiera de estos eventos, el hábito se marca automáticamente.
+-- Ejemplo: '{12, 45}' (IDs de calendar_events)
+ALTER TABLE habits
+  ADD COLUMN IF NOT EXISTS linked_event_ids bigint[] DEFAULT '{}';

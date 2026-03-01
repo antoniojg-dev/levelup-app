@@ -41,12 +41,9 @@ export default function XPBar() {
           {xpGanadoAnimacion && (
             <span
               key={xpGanadoAnimacion.key}
-              className={`absolute -top-2 right-0 text-xs font-bold animate-xp-gain ${
-                xpGanadoAnimacion.bonus ? 'text-warning' : 'text-success'
-              }`}
+              className="absolute -top-2 right-0 text-xs font-bold animate-xp-gain text-success"
             >
               +{xpGanadoAnimacion.xp} XP
-              {xpGanadoAnimacion.bonus && ' BONUS!'}
             </span>
           )}
         </div>

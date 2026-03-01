@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { obtenerRango, obtenerSiguienteRango, calcularProgresoRango } from '@/lib/ranks';
-import { calcularXPGanado, BONIFICACIONES } from '@/lib/xp-config';
+import { calcularXPGanado } from '@/lib/xp-config';
 import { obtenerClaveRecurrencia } from '@/lib/schedule';
 import { supabase } from '@/lib/supabase';
 
@@ -114,14 +114,47 @@ async function cargarHorarioDesdeSupabase(hoy) {
   return todos.map(mapearEvento);
 }
 
+/**
+ * Completar hábitos vinculados a un evento del calendario en background.
+ * Se llama automáticamente cuando se marca un evento como completado.
+ */
+async function completarHabitosVinculados(eventId, fecha) {
+  try {
+    const { data: habitos } = await supabase
+      .from('habits')
+      .select('id')
+      .filter('linked_event_ids', 'cs', `{${eventId}}`);
+
+    if (!habitos?.length) return;
+
+    const logs = habitos.map(h => ({
+      habit_id: h.id,
+      completed_date: fecha,
+    }));
+
+    await supabase
+      .from('habit_logs')
+      .upsert(logs, { onConflict: 'habit_id,completed_date' });
+  } catch (e) {
+    console.error('Error completando hábitos vinculados:', e);
+  }
+}
+
 export function XPProvider({ children }) {
   const [xpTotal, setXPTotal] = useState(0);
   const [completadasHoy, setCompletadasHoy] = useState([]);
   const [horarioHoy, setHorarioHoy] = useState([]);
   const [racha, setRacha] = useState(0);
+  const [lastStreakDate, setLastStreakDate] = useState('');
+
   // Versión del calendario — incrementar para forzar recarga en CalendarioPage
   const [calendarVersion, setCalendarVersion] = useState(0);
   const invalidarCalendario = useCallback(() => setCalendarVersion(v => v + 1), []);
+
+  // Versión de hábitos — incrementar para forzar recarga en HabitosPage
+  const [habitosVersion, setHabitosVersion] = useState(0);
+  const invalidarHabitos = useCallback(() => setHabitosVersion(v => v + 1), []);
+
   const [fechaActual, setFechaActual] = useState('');
   const [xpGanadoAnimacion, setXPGanadoAnimacion] = useState(null);
   const [cargado, setCargado] = useState(false);
@@ -130,13 +163,20 @@ export function XPProvider({ children }) {
   // Ref para acceder al horario actual dentro de callbacks sin stale closure
   const horarioHoyRef = useRef([]);
 
+  // Ref para acceder a lastStreakDate en callbacks sin stale closure
+  const lastStreakDateRef = useRef('');
+
   // Ref para el timer de debounce del sync a Supabase
   const syncTimerRef = useRef(null);
 
-  // Mantener ref sincronizada con el estado
+  // Mantener refs sincronizadas con el estado
   useEffect(() => {
     horarioHoyRef.current = horarioHoy;
   }, [horarioHoy]);
+
+  useEffect(() => {
+    lastStreakDateRef.current = lastStreakDate;
+  }, [lastStreakDate]);
 
   // ─── Inicialización: cargar desde Supabase con fallback a localStorage ──────
   useEffect(() => {
@@ -147,7 +187,7 @@ export function XPProvider({ children }) {
         // Cargar progreso del usuario desde Supabase
         const { data: progreso, error: errorProgreso } = await supabase
           .from('user_progress')
-          .select('xp, streak')
+          .select('xp, streak, last_streak_date')
           .eq('id', USER_PROGRESS_ID)
           .maybeSingle();
 
@@ -167,6 +207,9 @@ export function XPProvider({ children }) {
         if (progreso) {
           setXPTotal(progreso.xp ?? 0);
           setRacha(progreso.streak ?? 0);
+          const lsd = progreso.last_streak_date ?? '';
+          setLastStreakDate(lsd);
+          lastStreakDateRef.current = lsd;
         } else {
           // Primera vez: leer desde localStorage si existe
           const local = cargarDatosLocales();
@@ -240,6 +283,7 @@ export function XPProvider({ children }) {
             rank: obtenerRango(xpTotal).id,
             streak: racha,
             last_activity_date: fechaActual || fechaHoy(),
+            last_streak_date: lastStreakDateRef.current || null,
           },
           { onConflict: 'id' }
         );
@@ -269,7 +313,7 @@ export function XPProvider({ children }) {
       const yaCompletada = prev.includes(actividadId);
 
       if (yaCompletada) {
-        // Descompletar: restar XP
+        // Descompletar: restar XP (sin tocar la racha)
         setXPTotal(xp => Math.max(0, xp - xpActividad));
 
         // Eliminar completación de Supabase en background
@@ -297,24 +341,15 @@ export function XPProvider({ children }) {
         setXPTotal(xp => xp + xpActividad);
         setXPGanadoAnimacion({ xp: xpActividad, key: Date.now() });
 
-        const nuevasCompletadas = [...prev, actividadId];
-
-        // Usar ref para acceder al horario actual sin stale closure
-        const horarioActual = horarioHoyRef.current;
-        const todasCompletadas = horarioActual.every(act =>
-          nuevasCompletadas.includes(act.id)
-        );
-
-        if (todasCompletadas && horarioActual.length > 0) {
-          // Bonus por día completo
-          setXPTotal(xp => xp + BONIFICACIONES.dia_completo);
-          setXPGanadoAnimacion({
-            xp: xpActividad + BONIFICACIONES.dia_completo,
-            key: Date.now(),
-            bonus: true,
-          });
+        // Incrementar racha solo una vez por día calendario
+        if (lastStreakDateRef.current !== hoy) {
           setRacha(r => r + 1);
+          setLastStreakDate(hoy);
+          lastStreakDateRef.current = hoy;
         }
+
+        // Auto-completar hábitos vinculados a este evento en background
+        completarHabitosVinculados(actividadId, hoy);
 
         // Guardar completación en Supabase en background (upsert evita error 23505)
         supabase
@@ -342,7 +377,7 @@ export function XPProvider({ children }) {
             }
           });
 
-        return nuevasCompletadas;
+        return [...prev, actividadId];
       }
     });
   }, []);
@@ -380,9 +415,11 @@ export function XPProvider({ children }) {
     // Acciones
     toggleActividad,
     invalidarCalendario,
+    invalidarHabitos,
 
-    // Versión del calendario (para forzar recarga desde otros componentes)
+    // Versiones para forzar recarga desde otros componentes
     calendarVersion,
+    habitosVersion,
   };
 
   return (

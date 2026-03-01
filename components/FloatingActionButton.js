@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useXP } from '@/contexts/XPContext';
 import ModalEvento from '@/components/ModalEvento';
 import ModalTarea from '@/components/ModalTarea';
+import ModalHabito from '@/components/ModalHabito';
 
 /**
  * Botón flotante (+) con mini menú animado de acciones rápidas.
@@ -16,10 +18,12 @@ const OPCIONES = [
 ];
 
 export default function FloatingActionButton() {
+  const { invalidarHabitos } = useXP();
+
   const [abierto, setAbierto]               = useState(false);
   const [modalCalendario, setModalCalendario] = useState(false);
   const [modalTarea, setModalTarea]         = useState(false);
-  const [proximamente, setProximamente]     = useState(false);
+  const [modalHabito, setModalHabito]       = useState(false);
 
   const manejarOpcion = (accion) => {
     setAbierto(false);
@@ -28,9 +32,7 @@ export default function FloatingActionButton() {
     } else if (accion === 'tarea') {
       setModalTarea(true);
     } else if (accion === 'habito') {
-      // Fase 3
-      setProximamente(true);
-      setTimeout(() => setProximamente(false), 2000);
+      setModalHabito(true);
     }
   };
 
@@ -45,13 +47,6 @@ export default function FloatingActionButton() {
       )}
 
       <div className="fixed bottom-20 right-4 z-40 flex flex-col items-end gap-3">
-
-        {/* Toast "Próximamente" para Hábito */}
-        {proximamente && (
-          <div className="bg-card text-foreground text-sm font-medium px-4 py-2 rounded-2xl shadow-md border border-card-border animate-pulse">
-            Hábitos — Próximamente en Fase 3 💪
-          </div>
-        )}
 
         {/* Opciones del menú */}
         {OPCIONES.map((opcion, i) => (
@@ -105,6 +100,15 @@ export default function FloatingActionButton() {
       <ModalTarea
         visible={modalTarea}
         onCerrar={() => setModalTarea(false)}
+      />
+      <ModalHabito
+        visible={modalHabito}
+        habitoInicial={null}
+        onCerrar={() => setModalHabito(false)}
+        onGuardado={() => {
+          invalidarHabitos();
+          setModalHabito(false);
+        }}
       />
     </>
   );
